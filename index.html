@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบติดตามสถานะการเรียกเก็บค่าขนส่ง | Freight Billing Tracker</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Vue.js 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <!-- SheetJS (xlsx) for Exporting Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen font-sans">
+  <div id="app" class="min-h-screen flex flex-col">
+
+    <!-- ============================================================ -->
+    <!-- 1. LOGIN SCREEN (SECURE - NO DEMO USERS SHOWN) -->
+    <!-- ============================================================ -->
+    <div v-if="!isLoggedIn" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950">
+      <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-700/30 animate-scale">
+        <!-- Login Header -->
+        <div class="bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 p-8 text-white text-center relative">
+          <div class="w-16 h-16 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <i class="fa-solid fa-truck-ramp-box text-3xl text-white"></i>
+          </div>
+          <h1 class="text-2xl font-extrabold tracking-tight">ระบบติดตามค่าขนส่ง</h1>
+          <p class="text-xs text-sky-100 mt-1">Freight Billing Status Tracker</p>
+          <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-semibold mt-3">
+            <span>SCGJWD</span> • <span>NST</span> • <span>RTT</span>
+          </div>
+        </div>
+
+        <!-- Login Form -->
+        <div class="p-8 space-y-5">
+          <form @submit.prevent="login" class="space-y-4">
+            <div v-if="loginError" class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+              <i class="fa-solid fa-circle-exclamation text-rose-500"></i>
+              <span>{{ loginError }}</span>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><i class="fa-solid fa-user"></i></span>
+                <input type="text" v-model="loginForm.username" required
+                       class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none transition"
+                       placeholder="กรอก Username">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">รหัสผ่าน (Password)</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><i class="fa-solid fa-lock"></i></span>
+                <input type="password" v-model="loginForm.password" required
+                       class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none transition"
+                       placeholder="กรอก Password">
+              </div>
+            </div>
+
+            <button type="submit"
+                    class="w-full py-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-sky-500/25 transition duration-200 flex items-center justify-center gap-2 text-sm">
+              <i class="fa-solid fa-right-to-bracket"></i>
+              เข้าสู่ระบบ
+            </button>
+          </form>
+
+          <div class="text-center pt-2 border-t border-slate-100">
+            <p class="text-[11px] text-slate-400">ระบบรักษาความปลอดภัย • ติดต่อ Admin หากยังไม่มีบัญชีใช้งาน</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- 2. MAIN APPLICATION (AUTHENTICATED) -->
+    <!-- ============================================================ -->
+    <div v-else class="flex-1 flex flex-col">
+      
+      <!-- Top Navigation Header -->
+      <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-16">
+            
+            <!-- Left Brand -->
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow">
+                <i class="fa-solid fa-truck-ramp-box text-lg"></i>
+              </div>
+              <div>
+                <h1 class="text-base font-bold leading-tight flex items-center gap-2">
+                  ระบบติดตามสถานะการเรียกเก็บค่าขนส่ง
+                  <span class="text-[10px] bg-sky-500/30 text-sky-300 px-2 py-0.5 rounded-full font-semibold">DC & สาขา</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">Freight Billing Tracker (SCGJWD, NST, RTT)</p>
+              </div>
+            </div>
+
+            <!-- Right Actions & User Profile -->
+            <div class="flex items-center gap-3">
+              <!-- Admin User Management Button -->
+              <button v-if="currentUser.role === 'admin'" @click="openUserManagementModal"
+                      class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-1.5 transition font-semibold">
+                <i class="fa-solid fa-users-gear text-sky-400"></i>
+                <span class="hidden sm:inline">จัดการผู้ใช้งาน</span>
+              </button>
+
+              <!-- User Badge -->
+              <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
+                <div class="text-right">
+                  <div class="font-bold text-white leading-tight">{{ currentUser.name }}</div>
+                  <div class="text-[10px] text-slate-400">{{ currentUser.roleLabel }}</div>
+                </div>
+                <span :class="currentUser.badgeClass" class="px-2 py-0.5 rounded-md text-[10px] font-bold">
+                  {{ currentUser.role === 'admin' ? 'Admin' : currentUser.companyName }}
+                </span>
+              </div>
+
+              <!-- Logout Button -->
+              <button @click="logout" title="ออกจากระบบ"
+                      class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Subheader / Filter Bar -->
+      <div class="bg-white border-b border-slate-200 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Left: View Mode Switcher -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+              <button @click="activeView = 'dashboard3m'"
+                      :class="activeView === 'dashboard3m' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                      class="px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Dashboard ภาพรวม 3 เดือน</span>
+              </button>
+
+              <button @click="activeView = 'cards'"
+                      :class="activeView === 'cards' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                      class="px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check"></i>
+                <span>รายการ To-Do List</span>
+              </button>
+
+              <button @click="activeView = 'matrix'"
+                      :class="activeView === 'matrix' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                      class="px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-table-cells"></i>
+                <span>ตารางสรุปรายเดือน</span>
+              </button>
+            </div>
+
+            <!-- Right: Month Picker & Dropdown Filters -->
+            <div class="flex flex-wrap items-center gap-2">
+              
+              <!-- Month Navigator -->
+              <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-0.5">
+                <button @click="changeMonth(-1)" class="px-2.5 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition">
+                  <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <select v-model="selectedMonthYear" @change="onMonthYearChange"
+                        class="bg-transparent text-xs font-bold text-slate-800 px-2 py-1 focus:outline-none cursor-pointer">
+                  <option v-for="opt in monthYearOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+                <button @click="changeMonth(1)" 
+                        :disabled="!canGoNextMonth"
+                        :class="!canGoNextMonth ? 'opacity-30 cursor-not-allowed text-slate-300' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'"
+                        class="px-2.5 py-1 rounded-lg transition"
+                        title="เดือนถัดไป (สูงสุด 1 เดือนก่อนหน้า ไม่รวมเดือนปัจจุบัน)">
+                  <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+              </div>
+
+              <!-- Filter Company (For Admin) -->
+              <div v-if="currentUser.role === 'admin'" class="flex items-center">
+                <select v-model="filterCompany"
+                        class="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                  <option value="all">🏢 ทุกบริษัทขนส่ง</option>
+                  <option value="SCGJWD">SCGJWD</option>
+                  <option value="NST">NST</option>
+                  <option value="RTT">RTT</option>
+                </select>
+              </div>
+
+              <!-- Filter Unit / Branch -->
+              <div class="flex items-center">
+                <select v-model="filterUnit"
+                        class="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                  <option value="all">📍 ทุกหน่วยงาน (DC & สาขา)</option>
+                  <option value="dc">🏭 เฉพาะศูนย์กระจายสินค้า (DC)</option>
+                  <option value="branch">🏬 เฉพาะหน่วยงานสาขา</option>
+                  <optgroup label="เลือกหน่วยงานเฉพาะ">
+                    <option v-for="u in availableUnits" :key="u.id" :value="u.id">{{ u.name }}</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <!-- Filter Cycle -->
+              <div v-if="activeView === 'cards'" class="flex items-center">
+                <select v-model="filterCycle"
+                        class="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                  <option value="all">🗓️ ทุกรอบบิล</option>
+                  <option value="1">รอบที่ 1 (1 - 15)</option>
+                  <option value="2">รอบที่ 2 (16 - สิ้นเดือน)</option>
+                </select>
+              </div>
+
+              <!-- Export Excel Button -->
+              <button @click="exportToExcel"
+                      class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+                <i class="fa-solid fa-file-excel"></i>
+                <span class="hidden sm:inline">Export Excel</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN CONTENT CONTAINER -->
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+        <!-- ============================================================ -->
+        <!-- VIEW 1: 3-MONTH RECENT OVERVIEW DASHBOARD -->
+        <!-- ============================================================ -->
+        <div v-if="activeView === 'dashboard3m'" class="space-y-6">
+          
+          <!-- Banner: 3-Month Time Scope & Overall Progress -->
+          <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-lg border border-slate-800">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold border border-sky-500/30 mb-2">
+                  <i class="fa-solid fa-calendar-check"></i>
+                  ภาพรวม 3 เดือนล่าสุด
+                </span>
+                <h2 class="text-xl sm:text-2xl font-black tracking-tight">
+                  สรุปสถานะการเรียกเก็บค่าขนส่ง ย้อนหลัง 3 เดือน
+                </h2>
+                <p class="text-xs text-slate-300 mt-1">
+                  ช่วงเดือน: <span class="font-bold text-sky-300">{{ last3Months[0]?.label }}</span> ถึง <span class="font-bold text-sky-300">{{ last3Months[2]?.label }}</span>
+                  <span v-if="currentUser.role !== 'admin'" class="ml-2 px-2 py-0.5 rounded bg-white/15 text-white font-semibold">
+                    (แสดงเฉพาะ {{ currentUser.companyName }})
+                  </span>
+                </p>
+              </div>
+
+              <!-- Overall Completion Dial -->
+              <div class="flex items-center gap-4 bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10">
+                <div class="text-right">
+                  <div class="text-xs text-slate-300">ความคืบหน้าการยืนยันยอดรวม</div>
+                  <div class="text-2xl font-black text-white">{{ dashboard3mStats.completionRate }}%</div>
+                  <div class="text-[11px] text-emerald-400 font-semibold">
+                    ยืนยันแล้ว {{ dashboard3mStats.confirmedCycles }} จาก {{ dashboard3mStats.totalCycles }} รอบงาน
+                  </div>
+                </div>
+                <div class="w-12 h-12 rounded-full border-4 border-emerald-500 flex items-center justify-center font-bold text-sm bg-emerald-500/20 text-emerald-300">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status KPI Stat Cards + Total -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <!-- Card 0: New -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-sky-200 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-sparkles"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">1. New</p>
+                <p class="text-base font-bold text-sky-600">{{ dashboard3mStats.newCycles }} <span class="text-[10px] text-slate-500 font-normal">รอบ</span></p>
+                <span class="text-[10px] text-sky-600 font-medium">รอแจ้งยอด</span>
+              </div>
+            </div>
+
+            <!-- Card 1: บริษัทขนส่งแจ้งยอด (Submitted) -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-amber-200 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">2. แจ้งยอดแล้ว</p>
+                <p class="text-base font-bold text-amber-600">{{ dashboard3mStats.submittedCycles }} <span class="text-[10px] text-slate-500 font-normal">รอบ</span></p>
+                <span class="text-[10px] text-amber-600 font-medium">รอผู้ว่าจ้างยืนยัน</span>
+              </div>
+            </div>
+
+            <!-- Card 2: อยู่ระหว่างแก้ไขข้อมูลเพิ่มเติม (Revision) -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-rose-200 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">3. รอแก้ไขข้อมูล</p>
+                <p class="text-base font-bold text-rose-600">{{ dashboard3mStats.revisionCycles }} <span class="text-[10px] text-slate-500 font-normal">รอบ</span></p>
+                <span class="text-[10px] text-rose-600 font-medium">ปรับปรุงข้อมูล</span>
+              </div>
+            </div>
+
+            <!-- Card 3: ผู้ว่าจ้างยืนยันยอดค่าขนส่ง (Confirmed) -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-emerald-200 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">4. ยืนยันยอดแล้ว</p>
+                <p class="text-base font-bold text-emerald-600">{{ dashboard3mStats.confirmedCycles }} <span class="text-[10px] text-slate-500 font-normal">รอบ</span></p>
+                <span class="text-[10px] text-emerald-600 font-medium">ดำเนินการสำเร็จ</span>
+              </div>
+            </div>
+
+            <!-- Card 4: ไม่มีการใช้งานรถขนส่ง (No Usage) -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-300 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-ban"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">5. ไม่ใช้รถ</p>
+                <p class="text-base font-bold text-slate-700">{{ dashboard3mStats.noUsageCycles }} <span class="text-[10px] text-slate-500 font-normal">รอบ</span></p>
+                <span class="text-[10px] text-slate-500 font-medium">ยอด ฿0.00</span>
+              </div>
+            </div>
+
+            <!-- Card 5: Total 3-Month Amount -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm border border-blue-200 flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid fa-coins"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-medium text-slate-500 truncate">ยอดรวม 3 เดือน</p>
+                <p class="text-base font-bold text-slate-800 truncate">฿{{ formatCurrency(dashboard3mStats.totalAmount) }}</p>
+                <span class="text-[10px] text-slate-400">3 เดือนล่าสุด</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pending Alerts Bar (รอบที่ยังไม่เรียบร้อย) -->
+          <div v-if="dashboard3mStats.pendingList.length > 0" class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-bold text-xs text-amber-900 flex items-center gap-1.5 uppercase tracking-wider">
+                <i class="fa-solid fa-bell text-amber-600"></i>
+                รอบงานที่ยังค้างอยู่ (แจ้งยอด / รอแก้ไข): {{ dashboard3mStats.pendingList.length }} รายการ
+              </h3>
+              <span class="text-[11px] text-amber-700">ต้องติดตามตรวจสอบ</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto pr-1">
+              <div v-for="p in dashboard3mStats.pendingList" :key="p.id"
+                   class="bg-white p-2.5 rounded-xl border border-amber-200 flex items-center justify-between shadow-2xs">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span :class="getCompanyBadgeStyle(p.companyId)" class="px-1.5 py-0.5 rounded text-[10px] font-bold">{{ p.companyId }}</span>
+                    <span class="font-bold text-xs text-slate-800 truncate">{{ p.unitName }}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 mt-0.5">รอบ {{ p.cycle }} : {{ p.periodText }}</div>
+                </div>
+                <div class="text-right shrink-0">
+                  <span :class="getStatusBadgeClass(p.status)" class="text-[10px] px-2 py-0.5 rounded-full block mb-1">
+                    {{ getStatusLabel(p.status) }}
+                  </span>
+                  <button v-if="canEditAsTransporter(p)" @click="openSubmitModal(p)"
+                          class="px-2 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-[10px] font-bold transition">
+                    อัพเดท
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Company Performance Progress Cards -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+            <h3 class="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
+              <i class="fa-solid fa-bars-progress text-sky-600"></i>
+              ความคืบหน้าการเรียกเก็บแยกตามบริษัท (3 เดือนล่าสุด)
+            </h3>
+            <div :class="dashboard3mStats.companyBreakdown.length === 1 ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 md:grid-cols-3 gap-4'">
+              <div v-for="cb in dashboard3mStats.companyBreakdown" :key="cb.id" 
+                   class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <span :class="getCompanyBadgeStyle(cb.id)" class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">
+                      {{ cb.id }}
+                    </span>
+                    <div>
+                      <div class="font-bold text-sm text-slate-800">{{ cb.name }}</div>
+                      <div class="text-xs text-slate-500">ยอดรวม: ฿{{ formatCurrency(cb.amount) }}</div>
+                    </div>
+                  </div>
+                  <span class="text-sm font-black" :class="cb.rate === 100 ? 'text-emerald-600' : 'text-amber-600'">
+                    {{ cb.rate }}% ยืนยันแล้ว
+                  </span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-200 rounded-full h-2.5 my-2 overflow-hidden">
+                  <div class="h-2.5 rounded-full transition-all duration-500" 
+                       :class="cb.rate === 100 ? 'bg-emerald-500' : 'bg-amber-500'"
+                       :style="{ width: cb.rate + '%' }"></div>
+                </div>
+
+                <div class="flex flex-wrap justify-between text-xs text-slate-500 mt-1 gap-1">
+                  <span class="text-sky-600 font-semibold" v-if="cb.newCount > 0"><i class="fa-solid fa-sparkles mr-0.5"></i>New {{ cb.newCount }}</span>
+                  <span class="text-amber-700 font-semibold"><i class="fa-solid fa-file-invoice-dollar mr-0.5"></i>แจ้งยอด {{ cb.submitted }}</span>
+                  <span class="text-rose-600 font-semibold" v-if="cb.revision > 0"><i class="fa-solid fa-wrench mr-0.5"></i>แก้ไข {{ cb.revision }}</span>
+                  <span class="text-emerald-700 font-semibold"><i class="fa-solid fa-check mr-0.5"></i>ยืนยัน {{ cb.confirmed }}</span>
+                  <span class="text-slate-600 font-semibold" v-if="cb.noUsage > 0"><i class="fa-solid fa-ban mr-0.5"></i>ไม่ใช้รถ {{ cb.noUsage }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3-MONTH DETAILED STATUS TABLE (ตารางติดตามสถานะ 3 เดือน) -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 class="font-bold text-base text-slate-800">ตารางแสดงสถานะการเรียกเก็บค่าขนส่งแต่ละรอบ (3 เดือนล่าสุด)</h3>
+                <p class="text-xs text-slate-500">แสดงสถานะแยกตามบริษัทและหน่วยงานที่ใช้งานรถขนส่ง (DC / สาขา)</p>
+              </div>
+              <!-- Status Legend -->
+              <div class="flex flex-wrap items-center gap-3 text-xs">
+                <span class="flex items-center gap-1.5 font-semibold text-sky-700">
+                  <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span> 1. New (รอบใหม่)
+                </span>
+                <span class="flex items-center gap-1.5 font-semibold text-amber-700">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 2. บริษัทขนส่งแจ้งยอด
+                </span>
+                <span class="flex items-center gap-1.5 font-semibold text-rose-600">
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> 3. อยู่ระหว่างแก้ไขข้อมูลเพิ่มเติม
+                </span>
+                <span class="flex items-center gap-1.5 font-semibold text-emerald-700">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 4. ผู้ว่าจ้างยืนยันยอดค่าขนส่ง
+                </span>
+                <span class="flex items-center gap-1.5 font-semibold text-slate-600">
+                  <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> 5. ไม่มีการใช้งานรถขนส่ง
+                </span>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <!-- Header Row 1: Month Names -->
+                  <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                    <th rowspan="2" class="py-3 px-3 w-48 border-r border-slate-200 text-left">บริษัท & หน่วยงาน</th>
+                    <th v-for="m in last3Months" :key="m.label" colspan="2" class="py-2.5 px-3 text-center border-r border-slate-200">
+                      {{ m.label }}
+                    </th>
+                  </tr>
+                  <!-- Header Row 2: Cycles 1 & 2 for each month -->
+                  <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] font-semibold text-center">
+                    <template v-for="m in last3Months" :key="'sub-'+m.label">
+                      <th class="py-2 px-2 border-r border-slate-200 bg-sky-50/50">รอบ 1 (1-15)</th>
+                      <th class="py-2 px-2 border-r border-slate-200 bg-indigo-50/50">รอบ 2 (16-สิ้นเดือน)</th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <tr v-for="row in visibleUnitRows" :key="row.key" class="hover:bg-slate-50/80 transition">
+                    <!-- Company & Unit Column -->
+                    <td class="py-3 px-3 border-r border-slate-200 font-semibold text-slate-800">
+                      <div class="flex items-center gap-2">
+                        <span :class="getCompanyBadgeStyle(row.companyId)" class="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0">
+                          {{ row.companyId }}
+                        </span>
+                        <div class="min-w-0">
+                          <div class="font-bold text-xs text-slate-900 truncate">{{ row.unitName }}</div>
+                          <span :class="row.unitType === 'dc' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'" class="text-[9px] px-1.5 py-0.2 rounded font-semibold inline-block">
+                            {{ row.unitType === 'dc' ? 'DC' : 'สาขา' }}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Cells for Month 1, 2, 3 (Cycles 1 & 2) -->
+                    <template v-for="m in last3Months" :key="'cell-'+row.key+'-'+m.label">
+                      <!-- Cycle 1 Cell -->
+                      <td class="py-2.5 px-2 border-r border-slate-200 text-center cursor-pointer hover:bg-sky-50/70 transition group relative"
+                          @click="get3mRecord(row.companyId, row.unitId, m.year, m.month, 1) && openCycleFromTable(get3mRecord(row.companyId, row.unitId, m.year, m.month, 1))"
+                          :title="get3mRecord(row.companyId, row.unitId, m.year, m.month, 1) ? 'คลิกเพื่อดูหรืออัพเดทข้อมูลรอบนี้' : ''">
+                        <div v-if="get3mRecord(row.companyId, row.unitId, m.year, m.month, 1)" class="space-y-1">
+                          <span :class="getStatusBadgeClass(get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).status)"
+                                class="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-bold group-hover:ring-2 group-hover:ring-sky-400 transition">
+                            <i :class="getStatusIcon(get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).status)" class="text-[9px]"></i>
+                            {{ getStatusLabel(get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).status) }}
+                          </span>
+                          <div class="text-[11px] font-bold text-slate-700">
+                            {{ get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).amount !== null && get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).amount !== undefined ? '฿' + formatCurrency(get3mRecord(row.companyId, row.unitId, m.year, m.month, 1).amount) : '-' }}
+                          </div>
+                          <span class="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 block transition font-semibold">
+                            <i class="fa-solid fa-pen-to-square"></i> คลิกแก้ไข
+                          </span>
+                        </div>
+                        <span v-else class="text-slate-300 text-xs">-</span>
+                      </td>
+
+                      <!-- Cycle 2 Cell -->
+                      <td class="py-2.5 px-2 border-r border-slate-200 text-center cursor-pointer hover:bg-indigo-50/70 transition group relative"
+                          @click="get3mRecord(row.companyId, row.unitId, m.year, m.month, 2) && openCycleFromTable(get3mRecord(row.companyId, row.unitId, m.year, m.month, 2))"
+                          :title="get3mRecord(row.companyId, row.unitId, m.year, m.month, 2) ? 'คลิกเพื่อดูหรืออัพเดทข้อมูลรอบนี้' : ''">
+                        <div v-if="get3mRecord(row.companyId, row.unitId, m.year, m.month, 2)" class="space-y-1">
+                          <span :class="getStatusBadgeClass(get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).status)"
+                                class="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-bold group-hover:ring-2 group-hover:ring-indigo-400 transition">
+                            <i :class="getStatusIcon(get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).status)" class="text-[9px]"></i>
+                            {{ getStatusLabel(get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).status) }}
+                          </span>
+                          <div class="text-[11px] font-bold text-slate-700">
+                            {{ get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).amount !== null && get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).amount !== undefined ? '฿' + formatCurrency(get3mRecord(row.companyId, row.unitId, m.year, m.month, 2).amount) : '-' }}
+                          </div>
+                          <span class="text-[9px] text-indigo-600 opacity-0 group-hover:opacity-100 block transition font-semibold">
+                            <i class="fa-solid fa-pen-to-square"></i> คลิกแก้ไข
+                          </span>
+                        </div>
+                        <span v-else class="text-slate-300 text-xs">-</span>
+                      </td>
+                    </template>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+
+        <!-- ============================================================ -->
+        <!-- VIEW 2: CARDS / TO-DO LIST VIEW -->
+        <!-- ============================================================ -->
+        <div v-if="activeView === 'cards'" class="space-y-6">
+          
+          <!-- Month Stats Header -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span class="text-xs font-bold text-sky-600 uppercase tracking-wider">รอบประจำเดือน</span>
+              <h2 class="text-xl font-bold text-slate-800">{{ currentMonthLabel }}</h2>
+              <p class="text-xs text-slate-500">พบทั้งหมด {{ displayRecords.length }} รายการตามตัวกรอง</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2.5">
+              <div class="bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold text-sky-800">New (รอบใหม่)</div>
+                <div class="text-base font-extrabold text-sky-600">{{ stats.newCount }} รายการ</div>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold text-amber-800">แจ้งยอดแล้ว</div>
+                <div class="text-base font-extrabold text-amber-600">{{ stats.submittedCount }} รายการ</div>
+              </div>
+              <div class="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold text-rose-800">รอแก้ไขข้อมูล</div>
+                <div class="text-base font-extrabold text-rose-600">{{ stats.revisionCount }} รายการ</div>
+              </div>
+              <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold text-emerald-800">ยืนยันยอดแล้ว</div>
+                <div class="text-base font-extrabold text-emerald-600">{{ stats.confirmedCount }} รายการ</div>
+              </div>
+              <div class="bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-xl text-center">
+                <div class="text-[10px] font-bold text-slate-700">ไม่มีการใช้รถ</div>
+                <div class="text-base font-extrabold text-slate-700">{{ stats.noUsageCount }} รายการ</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div v-for="item in displayRecords" :key="item.id"
+                 class="bg-white rounded-2xl shadow-sm border transition duration-200 hover:shadow-md flex flex-col justify-between"
+                 :class="item.status === 'confirmed' ? 'border-emerald-200' : (item.status === 'revision' ? 'border-rose-200' : (item.status === 'submitted' ? 'border-amber-200' : (item.status === 'no_usage' ? 'border-slate-300 bg-slate-50/40' : 'border-sky-200')))">
+              
+              <!-- Card Header -->
+              <div class="p-5">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                  <div class="flex items-center gap-2">
+                    <span :class="getCompanyBadgeStyle(item.companyId)" class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+                      {{ item.companyId }}
+                    </span>
+                    <div>
+                      <h4 class="font-bold text-sm text-slate-800 leading-tight">{{ item.companyName }}</h4>
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-xs font-bold text-slate-700">{{ item.unitName }}</span>
+                        <span :class="item.unitType === 'dc' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'" class="text-[9px] px-1.5 py-0.2 rounded font-semibold">
+                          {{ item.unitType === 'dc' ? 'DC' : 'สาขา' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span class="text-xs font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">
+                    รอบ {{ item.cycle }}
+                  </span>
+                </div>
+
+                <!-- Cycle Date Range & Due Date -->
+                <div class="space-y-1 text-xs text-slate-600 mb-3 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-400">ช่วงวันที่:</span>
+                    <span class="font-semibold text-slate-700">{{ item.periodText }}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-400">กำหนดส่งยอด:</span>
+                    <span class="font-semibold text-rose-600">{{ item.dueDateText }}</span>
+                  </div>
+                </div>
+
+                <!-- Status Badge -->
+                <div class="mb-3">
+                  <span :class="getStatusBadgeClass(item.status)" class="w-full py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                    <i :class="getStatusIcon(item.status)"></i>
+                    {{ getStatusLabel(item.status) }}
+                  </span>
+                </div>
+
+                <!-- Amount Breakdown Box -->
+                <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-100 space-y-2">
+                  <div class="flex items-baseline justify-between pb-1.5 border-b border-slate-200">
+                    <span class="text-xs font-bold text-slate-700">ยอดรวมค่าขนส่ง:</span>
+                    <span class="text-lg font-extrabold text-slate-900">
+                      {{ item.amount ? '฿' + formatCurrency(item.amount) : 'ยังไม่ระบุ' }}
+                    </span>
+                  </div>
+
+                  <!-- Breakdown Items -->
+                  <div class="space-y-1 text-xs pt-0.5">
+                    <div v-if="item.hasBranch !== false" class="flex items-center justify-between text-slate-600">
+                      <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-code-branch text-sky-500 text-[10px]"></i>
+                        {{ item.unitType === 'branch' ? '1. กระจายทั่วไป (SR/Van/MT):' : '1. กระจายสาขา:' }}
+                      </span>
+                      <span class="font-medium text-slate-800">{{ item.amountBranch ? '฿' + formatCurrency(item.amountBranch) : '-' }}</span>
+                    </div>
+
+                    <!-- Modern Trade -->
+                    <div v-if="item.hasMT" class="flex items-center justify-between text-slate-600">
+                      <span class="flex items-center gap-1.5"><i class="fa-solid fa-store text-indigo-500 text-[10px]"></i> 2. ร้าน MT:</span>
+                      <span class="font-medium text-slate-800">{{ item.amountMT ? '฿' + formatCurrency(item.amountMT) : '-' }}</span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-slate-600">
+                      <span class="flex items-center gap-1.5"><i class="fa-solid fa-truck-ramp-box text-teal-600 text-[10px]"></i> 3. ค่าบริการขนส่ง:</span>
+                      <span class="font-medium text-slate-800">{{ item.amountService ? '฿' + formatCurrency(item.amountService) : '-' }}</span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-slate-600">
+                      <span class="flex items-center gap-1.5"><i class="fa-solid fa-boxes-stacked text-amber-500 text-[10px]"></i> 4. เพิ่มเติมอื่นๆ:</span>
+                      <span class="font-medium text-slate-800">{{ item.amountOther ? '฿' + formatCurrency(item.amountOther) : '-' }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Note Box (if provided) -->
+                  <div v-if="item.note" class="text-[11px] bg-amber-50/90 border border-amber-200 text-amber-900 rounded-lg p-2 flex items-start gap-1.5 mt-2">
+                    <i class="fa-solid fa-note-sticky text-amber-600 text-[11px] mt-0.5 shrink-0"></i>
+                    <div class="min-w-0 flex-1">
+                      <span class="font-bold text-amber-950">Note: </span>
+                      <span class="break-words">{{ item.note }}</span>
+                    </div>
+                  </div>
+
+                  <div v-if="item.updatedAt" class="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200 mt-2">
+                    <span>อัพเดทล่าสุด:</span>
+                    <span class="text-slate-600 font-medium">{{ formatDate(item.updatedAt) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Action Buttons -->
+              <div class="px-5 py-3 bg-slate-50/80 border-t border-slate-100 rounded-b-2xl flex items-center justify-between gap-2">
+                <button @click="openDetailModal(item)"
+                        class="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-1">
+                  <i class="fa-solid fa-clock-rotate-left text-slate-400"></i>
+                  ประวัติ
+                </button>
+
+                <button v-if="canEditAsTransporter(item)" @click="openSubmitModal(item)"
+                        class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                  อัพเดทสถานะ
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+
+        <!-- ============================================================ -->
+        <!-- VIEW 3: MONTHLY MATRIX TABLE VIEW -->
+        <!-- ============================================================ -->
+        <div v-if="activeView === 'matrix'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <h3 class="font-bold text-base text-slate-800">ตารางสรุปภาพรวมประจำเดือน: {{ currentMonthLabel }}</h3>
+              <p class="text-xs text-slate-500">เปรียบเทียบสถานะรอบที่ 1 และ รอบที่ 2 ของแต่ละหน่วยงาน</p>
+            </div>
+            <button @click="exportToExcel" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-file-excel"></i> ดาวน์โหลดตาราง Excel
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-700 text-xs font-semibold">
+                  <th class="py-3.5 px-4 w-52">บริษัท & หน่วยงาน</th>
+                  <th class="py-3.5 px-4 border-l border-slate-200">รอบที่ 1 (วันที่ 1 - 15)</th>
+                  <th class="py-3.5 px-4 border-l border-slate-200">รอบที่ 2 (วันที่ 16 - สิ้นเดือน)</th>
+                  <th class="py-3.5 px-4 border-l border-slate-200 text-right w-40">ยอดรวมทั้งเดือน</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr v-for="row in visibleUnitRows" :key="row.key" class="hover:bg-slate-50/60 transition">
+                  <td class="py-3.5 px-4 font-semibold text-slate-800">
+                    <div class="flex items-center gap-2">
+                      <span :class="getCompanyBadgeStyle(row.companyId)" class="px-1.5 py-0.5 rounded text-[10px] font-bold">
+                        {{ row.companyId }}
+                      </span>
+                      <div>
+                        <div class="font-bold text-xs text-slate-900">{{ row.unitName }}</div>
+                        <span :class="row.unitType === 'dc' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'" class="text-[9px] px-1.5 py-0.2 rounded font-semibold">
+                          {{ row.unitType === 'dc' ? 'DC' : 'สาขา' }}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Cycle 1 -->
+                  <td class="py-3.5 px-4 border-l border-slate-200 cursor-pointer hover:bg-sky-50/50 transition"
+                      @click="getMatrixItem(row.companyId, row.unitId, 1) && openCycleFromTable(getMatrixItem(row.companyId, row.unitId, 1))"
+                      :title="getMatrixItem(row.companyId, row.unitId, 1) ? 'คลิกเพื่อดูหรืออัพเดทข้อมูล' : ''">
+                    <div v-if="getMatrixItem(row.companyId, row.unitId, 1)" class="space-y-1">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-800 text-xs">
+                          {{ getMatrixItem(row.companyId, row.unitId, 1).amount !== null && getMatrixItem(row.companyId, row.unitId, 1).amount !== undefined ? '฿' + formatCurrency(getMatrixItem(row.companyId, row.unitId, 1).amount) : '-' }}
+                        </span>
+                        <span :class="getStatusBadgeClass(getMatrixItem(row.companyId, row.unitId, 1).status)" class="text-[10px] px-2 py-0.5 rounded-full">
+                          {{ getStatusLabel(getMatrixItem(row.companyId, row.unitId, 1).status) }}
+                        </span>
+                      </div>
+                      <div class="text-[11px] text-slate-500 flex items-center justify-between gap-1">
+                        <span class="truncate">
+                          <template v-if="getMatrixItem(row.companyId, row.unitId, 1).hasBranch !== false">
+                            {{ row.unitType === 'branch' ? 'กระจายทั่วไป: ' : 'กระจาย: ' }}฿{{ formatCurrency(getMatrixItem(row.companyId, row.unitId, 1).amountBranch || 0) }}
+                          </template>
+                          <template v-else-if="getMatrixItem(row.companyId, row.unitId, 1).hasMT">
+                            ร้าน MT: ฿{{ formatCurrency(getMatrixItem(row.companyId, row.unitId, 1).amountMT || 0) }}
+                          </template>
+                          <template v-else>
+                            -
+                          </template>
+                          <i v-if="getMatrixItem(row.companyId, row.unitId, 1).note" class="fa-solid fa-note-sticky text-amber-500 text-[10px] ml-1" :title="'Note: ' + getMatrixItem(row.companyId, row.unitId, 1).note"></i>
+                        </span>
+                        <button v-if="canEditAsTransporter(getMatrixItem(row.companyId, row.unitId, 1))" @click.stop="openSubmitModal(getMatrixItem(row.companyId, row.unitId, 1))" class="text-sky-600 hover:text-sky-800 font-bold text-xs underline shrink-0">
+                          อัพเดท
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Cycle 2 -->
+                  <td class="py-3.5 px-4 border-l border-slate-200 cursor-pointer hover:bg-sky-50/50 transition"
+                      @click="getMatrixItem(row.companyId, row.unitId, 2) && openCycleFromTable(getMatrixItem(row.companyId, row.unitId, 2))"
+                      :title="getMatrixItem(row.companyId, row.unitId, 2) ? 'คลิกเพื่อดูหรืออัพเดทข้อมูล' : ''">
+                    <div v-if="getMatrixItem(row.companyId, row.unitId, 2)" class="space-y-1">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-800 text-xs">
+                          {{ getMatrixItem(row.companyId, row.unitId, 2).amount !== null && getMatrixItem(row.companyId, row.unitId, 2).amount !== undefined ? '฿' + formatCurrency(getMatrixItem(row.companyId, row.unitId, 2).amount) : '-' }}
+                        </span>
+                        <span :class="getStatusBadgeClass(getMatrixItem(row.companyId, row.unitId, 2).status)" class="text-[10px] px-2 py-0.5 rounded-full">
+                          {{ getStatusLabel(getMatrixItem(row.companyId, row.unitId, 2).status) }}
+                        </span>
+                      </div>
+                      <div class="text-[11px] text-slate-500 flex items-center justify-between gap-1">
+                        <span class="truncate">
+                          <template v-if="getMatrixItem(row.companyId, row.unitId, 2).hasBranch !== false">
+                            {{ row.unitType === 'branch' ? 'กระจายทั่วไป: ' : 'กระจาย: ' }}฿{{ formatCurrency(getMatrixItem(row.companyId, row.unitId, 2).amountBranch || 0) }}
+                          </template>
+                          <template v-else-if="getMatrixItem(row.companyId, row.unitId, 2).hasMT">
+                            ร้าน MT: ฿{{ formatCurrency(getMatrixItem(row.companyId, row.unitId, 2).amountMT || 0) }}
+                          </template>
+                          <template v-else>
+                            -
+                          </template>
+                          <i v-if="getMatrixItem(row.companyId, row.unitId, 2).note" class="fa-solid fa-note-sticky text-amber-500 text-[10px] ml-1" :title="'Note: ' + getMatrixItem(row.companyId, row.unitId, 2).note"></i>
+                        </span>
+                        <button v-if="canEditAsTransporter(getMatrixItem(row.companyId, row.unitId, 2))" @click.stop="openSubmitModal(getMatrixItem(row.companyId, row.unitId, 2))" class="text-sky-600 hover:text-sky-800 font-bold text-xs underline shrink-0">
+                          อัพเดท
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Monthly Unit Total -->
+                  <td class="py-3.5 px-4 border-l border-slate-200 text-right font-black text-slate-900 text-sm">
+                    ฿{{ formatCurrency(getUnitRowMonthTotal(row.companyId, row.unitId)) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+
+
+      <!-- ============================================== -->
+      <!-- MODAL: TRANSPORTER STATUS & BILLING UPDATE -->
+      <!-- ============================================== -->
+      <div v-if="showSubmitModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-scale flex flex-col max-h-[85vh]">
+          <!-- Modal Header (Pinned at top) -->
+          <div class="px-5 py-3 bg-gradient-to-r from-sky-600 to-indigo-700 text-white flex items-center justify-between shrink-0">
+            <div>
+              <h3 class="font-bold text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-file-pen text-xs"></i>
+                อัพเดทสถานะและแจ้งยอดค่าขนส่ง
+              </h3>
+              <p class="text-[11px] text-sky-100 mt-0.5">
+                {{ activeItem?.companyName }} • {{ activeItem?.unitName }} (รอบที่ {{ activeItem?.cycle }})
+              </p>
+            </div>
+            <button @click="showSubmitModal = false" class="text-sky-200 hover:text-white p-1 transition">
+              <i class="fa-solid fa-xmark text-base"></i>
+            </button>
+          </div>
+
+          <!-- Form Body (Scrollable with scrollbar) -->
+          <form @submit.prevent="saveSubmitModal" class="flex flex-col flex-1 overflow-hidden">
+            <div class="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
+              
+              <!-- Cycle Info Box -->
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-[11px]">
+                <div>
+                  <span class="text-slate-400">ช่วงวันที่:</span>
+                  <span class="font-bold text-slate-700 ml-1">{{ activeItem?.periodText }}</span>
+                </div>
+                <div>
+                  <span class="text-slate-400">กำหนดส่งยอด:</span>
+                  <span class="font-bold text-rose-600 ml-1">{{ activeItem?.dueDateText }}</span>
+                </div>
+              </div>
+
+              <!-- Status Selection (Drop Down List) -->
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  เลือกสถานะการเรียกเก็บของรอบนี้: <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <select v-model="formSubmit.status"
+                          class="w-full pl-3 pr-9 py-2 bg-slate-50 border-2 rounded-xl text-xs font-bold focus:outline-none transition appearance-none cursor-pointer"
+                          :class="{
+                            'border-sky-400 bg-sky-50/40 text-sky-950 focus:ring-2 focus:ring-sky-500': formSubmit.status === 'new',
+                            'border-amber-400 bg-amber-50/40 text-amber-950 focus:ring-2 focus:ring-amber-500': formSubmit.status === 'submitted',
+                            'border-rose-400 bg-rose-50/40 text-rose-950 focus:ring-2 focus:ring-rose-500': formSubmit.status === 'revision',
+                            'border-emerald-400 bg-emerald-50/40 text-emerald-950 focus:ring-2 focus:ring-emerald-500': formSubmit.status === 'confirmed',
+                            'border-slate-400 bg-slate-100 text-slate-800 focus:ring-2 focus:ring-slate-500': formSubmit.status === 'no_usage'
+                          }">
+                    <option value="new">1. New (รอบใหม่ยังไม่มีการอัพเดท)</option>
+                    <option value="submitted">2. บริษัทขนส่งแจ้งยอด</option>
+                    <option value="revision">3. อยู่ระหว่างแก้ไขข้อมูลเพิ่มเติม</option>
+                    <option value="confirmed">4. ผู้ว่าจ้างยืนยันยอดค่าขนส่ง</option>
+                    <option value="no_usage">5. ไม่มีการใช้งานรถขนส่ง (ยอด ฿0.00)</option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                    <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                  </div>
+                </div>
+                
+                <!-- Dynamic Status Explanation Card -->
+                <div class="mt-1.5 p-2 rounded-xl border text-[11px] flex items-center gap-2 transition"
+                     :class="{
+                       'bg-sky-50 border-sky-200 text-sky-800': formSubmit.status === 'new',
+                       'bg-amber-50 border-amber-200 text-amber-800': formSubmit.status === 'submitted',
+                       'bg-rose-50 border-rose-200 text-rose-800': formSubmit.status === 'revision',
+                       'bg-emerald-50 border-emerald-200 text-emerald-800': formSubmit.status === 'confirmed',
+                       'bg-slate-100 border-slate-300 text-slate-700': formSubmit.status === 'no_usage'
+                     }">
+                  <i :class="getStatusIcon(formSubmit.status)" class="text-xs shrink-0"></i>
+                  <span v-if="formSubmit.status === 'new'">รอบการเรียกเก็บค่าขนส่งเปิดใหม่ ยังไม่มีการแจ้งยอดจากบริษัทขนส่ง</span>
+                  <span v-else-if="formSubmit.status === 'submitted'">บริษัทขนส่งแจ้งยอดค่าขนส่งและส่งเรื่องให้ผู้ว่าจ้างตรวจสอบ</span>
+                  <span v-else-if="formSubmit.status === 'revision'">อยู่ระหว่างตรวจสอบ หรือปรับปรุงข้อมูลเที่ยววิ่ง/ยอดเงินเพิ่มเติม</span>
+                  <span v-else-if="formSubmit.status === 'confirmed'">ผู้ว่าจ้างยืนยันยอดค่าขนส่งเรียบร้อยแล้ว (สามารถกลับมาแก้ไขได้ตลอด)</span>
+                  <span v-else-if="formSubmit.status === 'no_usage'">รอบนี้ไม่มีการใช้งานรถขนส่งของหน่วยงานนี้ (ยอดค่าใช้จ่าย ฿0.00)</span>
+                </div>
+              </div>
+
+              <!-- Amount Inputs -->
+              <div class="pt-2 border-t border-slate-200">
+                <div class="flex items-center justify-between mb-1.5">
+                  <p class="text-[11px] text-slate-700 font-bold">
+                    ยอดค่าขนส่งแยกตามส่วนงาน (เว้นว่างหรือใส่ 0 ได้):
+                  </p>
+                  <span v-if="activeItem?.hasBranch === false" class="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-semibold border border-amber-200">
+                    * DC WGN-MT ไม่มีงานกระจายสาขา
+                  </span>
+                  <span v-else-if="!activeItem?.hasMT" class="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-semibold border border-amber-200">
+                    * {{ activeItem?.unitType === 'branch' ? 'สาขาไม่มีงาน MT' : 'ไม่มีงาน MT' }}
+                  </span>
+                </div>
+
+                <div class="space-y-2">
+                  <!-- 1. งานขนส่งกระจายสาขา / กระจายทั่วไป -->
+                  <div v-if="activeItem?.hasBranch !== false">
+                    <label class="block text-[11px] font-bold text-slate-700 mb-0.5 flex items-center justify-between">
+                      <span class="flex items-center gap-1">
+                        <i class="fa-solid fa-code-branch text-sky-500 text-[10px]"></i>
+                        {{ activeItem?.unitType === 'branch' ? '1. งานขนส่งกระจายทั่วไป (SR/Van/MT) (บาท)' : '1. งานขนส่งกระจายสาขา (บาท)' }}
+                      </span>
+                      <span class="text-[10px] text-sky-600 font-normal">{{ activeItem?.unitType === 'branch' ? 'กระจายทั่วไป' : 'กระจายสาขา' }}</span>
+                    </label>
+                    <div class="relative">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">฿</span>
+                      <input type="number" step="0.01" min="0" v-model.number="formSubmit.amountBranch"
+                             class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-bold text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none"
+                             placeholder="0.00">
+                    </div>
+                  </div>
+
+                  <!-- 2. งานขนส่งร้าน MT (Only for DC units with MT) -->
+                  <div v-if="activeItem?.hasMT">
+                    <label class="block text-[11px] font-bold text-slate-700 mb-0.5 flex items-center justify-between">
+                      <span class="flex items-center gap-1"><i class="fa-solid fa-store text-indigo-500 text-[10px]"></i> 2. งานขนส่งร้าน MT (บาท)</span>
+                      <span class="text-[10px] text-indigo-600 font-normal">Modern Trade</span>
+                    </label>
+                    <div class="relative">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">฿</span>
+                      <input type="number" step="0.01" min="0" v-model.number="formSubmit.amountMT"
+                             class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-bold text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none"
+                             placeholder="0.00">
+                    </div>
+                  </div>
+
+                  <!-- 3. ค่าบริการงานขนส่ง -->
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-0.5 flex items-center justify-between">
+                      <span class="flex items-center gap-1"><i class="fa-solid fa-truck-ramp-box text-teal-600 text-[10px]"></i> 3. ค่าบริการงานขนส่ง (บาท)</span>
+                      <span class="text-[10px] text-teal-600 font-normal">ค่าบริการขนส่ง</span>
+                    </label>
+                    <div class="relative">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">฿</span>
+                      <input type="number" step="0.01" min="0" v-model.number="formSubmit.amountService"
+                             class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-bold text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none"
+                             placeholder="0.00">
+                    </div>
+                  </div>
+
+                  <!-- 4. งานขนส่งเพิ่มเติมอื่นๆ -->
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-0.5 flex items-center justify-between">
+                      <span class="flex items-center gap-1"><i class="fa-solid fa-boxes-stacked text-amber-500 text-[10px]"></i> 4. งานขนส่งเพิ่มเติมอื่นๆ (บาท)</span>
+                      <span class="text-[10px] text-amber-600 font-normal">เที่ยวพิเศษ/อื่นๆ</span>
+                    </label>
+                    <div class="relative">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-semibold">฿</span>
+                      <input type="number" step="0.01" min="0" v-model.number="formSubmit.amountOther"
+                             class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-bold text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none"
+                             placeholder="0.00">
+                    </div>
+                  </div>
+
+                  <!-- 5. Note / หมายเหตุ -->
+                  <div class="pt-1">
+                    <div class="flex items-center justify-between mb-0.5">
+                      <label class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                        <i class="fa-regular fa-note-sticky text-amber-500 text-[11px]"></i> Note / หมายเหตุ:
+                      </label>
+                      <span class="text-[10px] font-semibold" :class="(formSubmit.note?.length || 0) >= 140 ? 'text-rose-500' : 'text-slate-400'">
+                        {{ (formSubmit.note?.length || 0) }}/150
+                      </span>
+                    </div>
+                    <textarea v-model="formSubmit.note" maxlength="150" rows="2"
+                              class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none resize-none leading-relaxed"
+                              placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี ไม่เกิน 150 ตัวอักษร)"></textarea>
+                  </div>
+                </div>
+
+                <!-- Auto-Calculated Total Box -->
+                <div class="bg-sky-50 border border-sky-200 rounded-xl p-2.5 flex items-center justify-between mt-2.5">
+                  <span class="text-[11px] font-bold text-sky-900 uppercase">ยอดรวมสุทธิ:</span>
+                  <span class="text-base font-extrabold text-sky-800">฿{{ formatCurrency(formSubmitTotal) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modal Action Buttons (Pinned at footer) -->
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+              <button type="button" @click="showSubmitModal = false" class="px-3.5 py-1.5 rounded-xl text-slate-600 hover:bg-slate-200/70 text-xs font-semibold transition">
+                ยกเลิก
+              </button>
+              <button type="submit" class="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+                <i class="fa-solid fa-save"></i>
+                บันทึกและอัพเดทสถานะ
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+
+      <!-- ============================================== -->
+      <!-- MODAL: AUDIT TIMELINE & DETAIL -->
+      <!-- ============================================== -->
+      <div v-if="showDetailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-scale">
+          <div class="px-6 py-4 bg-slate-800 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <i class="fa-solid fa-clock-rotate-left text-lg text-sky-400"></i>
+              <h3 class="font-bold text-base">ประวัติรอบการเรียกเก็บ</h3>
+            </div>
+            <button @click="showDetailModal = false" class="text-slate-300 hover:text-white p-1">
+              <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div>
+                <h4 class="font-bold text-slate-800">{{ activeItem?.companyName }} - {{ activeItem?.unitName }}</h4>
+                <p class="text-xs text-slate-500">รอบที่ {{ activeItem?.cycle }} : {{ activeItem?.periodText }}</p>
+              </div>
+              <span :class="getStatusBadgeClass(activeItem?.status)" class="text-xs px-2.5 py-1 rounded-full font-semibold">
+                {{ getStatusLabel(activeItem?.status) }}
+              </span>
+            </div>
+
+            <!-- Breakdown in Detail Modal -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+              <div class="flex justify-between items-center pb-1.5 border-b border-slate-200">
+                <span class="text-slate-600 text-xs font-bold">ยอดรวมค่าขนส่ง:</span>
+                <span class="font-extrabold text-lg text-slate-900">{{ activeItem?.amount ? '฿' + formatCurrency(activeItem.amount) : 'ยังไม่ระบุ' }}</span>
+              </div>
+              <div class="space-y-1 text-xs">
+                <div v-if="activeItem?.hasBranch !== false" class="flex justify-between text-slate-600">
+                  <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-code-branch text-sky-500 text-[10px]"></i>
+                    {{ activeItem?.unitType === 'branch' ? '1. กระจายทั่วไป (SR/Van/MT):' : '1. กระจายสาขา:' }}
+                  </span>
+                  <span class="font-medium text-slate-800">{{ activeItem?.amountBranch ? '฿' + formatCurrency(activeItem.amountBranch) : '-' }}</span>
+                </div>
+                <div v-if="activeItem?.hasMT" class="flex justify-between text-slate-600">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-store text-indigo-500 text-[10px]"></i> 2. ร้าน MT:</span>
+                  <span class="font-medium text-slate-800">{{ activeItem?.amountMT ? '฿' + formatCurrency(activeItem.amountMT) : '-' }}</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-truck-ramp-box text-teal-600 text-[10px]"></i> 3. ค่าบริการงานขนส่ง:</span>
+                  <span class="font-medium text-slate-800">{{ activeItem?.amountService ? '฿' + formatCurrency(activeItem.amountService) : '-' }}</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-boxes-stacked text-amber-500 text-[10px]"></i> 4. เพิ่มเติมอื่นๆ:</span>
+                  <span class="font-medium text-slate-800">{{ activeItem?.amountOther ? '฿' + formatCurrency(activeItem.amountOther) : '-' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Note in Detail Modal -->
+            <div v-if="activeItem?.note" class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+              <div class="flex items-center gap-1.5 font-bold mb-1 text-amber-800">
+                <i class="fa-solid fa-note-sticky text-amber-500"></i> Note / หมายเหตุ:
+              </div>
+              <p class="leading-relaxed whitespace-pre-wrap">{{ activeItem.note }}</p>
+            </div>
+
+            <!-- History Timeline -->
+            <div>
+              <h5 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">Timeline</h5>
+              <div class="space-y-3 relative pl-4 border-l-2 border-slate-200 ml-2">
+                <div v-for="(log, idx) in activeItem?.history" :key="idx" class="relative">
+                  <div class="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-sky-600 ring-4 ring-white"></div>
+                  <div class="text-xs font-bold text-slate-800">{{ log.action }}</div>
+                  <div class="text-[11px] text-slate-500">{{ formatDate(log.timestamp) }} โดย <span class="font-semibold text-slate-700">{{ log.user }}</span></div>
+                  <div v-if="log.note" class="text-xs text-slate-600 mt-0.5 bg-slate-50 p-1.5 rounded border border-slate-100">{{ log.note }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 flex justify-end">
+              <button @click="showDetailModal = false" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ============================================== -->
+      <!-- MODAL: ADMIN USER MANAGEMENT (ผู้ว่าจ้างจัดการผู้ใช้) -->
+      <!-- ============================================== -->
+      <div v-if="showUserManagementModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-scale">
+          <!-- Header -->
+          <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                <i class="fa-solid fa-users-gear"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-base">จัดการผู้ใช้งานระบบ (User Management)</h3>
+                <p class="text-xs text-slate-400">สร้าง แก้ไข และกำหนดสิทธิ์การเข้าถึงข้อมูลตามบริษัทขนส่ง</p>
+              </div>
+            </div>
+            <button @click="showUserManagementModal = false" class="text-slate-400 hover:text-white p-1">
+              <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          <!-- Body & Table -->
+          <div class="p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-600">รายชื่อผู้ใช้งานทั้งหมด ({{ allUsers.length }} บัญชี)</span>
+              <button @click="openCreateUserModal"
+                      class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+                <i class="fa-solid fa-user-plus"></i>
+                เพิ่มผู้ใช้งานใหม่
+              </button>
+            </div>
+
+            <!-- Users Table -->
+            <div class="border border-slate-200 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold sticky top-0">
+                  <tr>
+                    <th class="py-2.5 px-3">Username</th>
+                    <th class="py-2.5 px-3">ชื่อ-นามสกุล</th>
+                    <th class="py-2.5 px-3">สิทธิ์ / บริษัท</th>
+                    <th class="py-2.5 px-3 text-right">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr v-for="(u, idx) in allUsers" :key="u.username" class="hover:bg-slate-50/80 transition">
+                    <td class="py-2.5 px-3 font-bold text-slate-800 flex items-center gap-1.5">
+                      <i class="fa-solid fa-user-tag text-slate-400 text-[10px]"></i>
+                      {{ u.username }}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-700">{{ u.name }}</td>
+                    <td class="py-2.5 px-3">
+                      <span :class="u.badgeClass" class="px-2 py-0.5 rounded-full font-bold text-[10px]">
+                        {{ u.role === 'admin' ? 'ผู้ดูแลภาพรวม (Admin)' : u.companyName }}
+                      </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-right space-x-2">
+                      <button @click="openEditUserModal(u, idx)" class="text-sky-600 hover:text-sky-800 font-bold" title="แก้ไข">
+                        <i class="fa-solid fa-pen"></i>
+                      </button>
+                      <button v-if="u.username !== currentUser.username" @click="deleteUserAccount(idx)" class="text-rose-500 hover:text-rose-700 font-bold" title="ลบ">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pt-2 border-t border-slate-200 flex justify-end">
+              <button @click="showUserManagementModal = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ============================================== -->
+      <!-- MODAL: ADD / EDIT USER FORM -->
+      <!-- ============================================== -->
+      <div v-if="showUserEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-60 animate-fade">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-scale">
+          <div class="px-6 py-4 bg-sky-600 text-white flex items-center justify-between">
+            <h4 class="font-bold text-sm">
+              {{ userEditIndex === -1 ? 'เพิ่มผู้ใช้งานใหม่' : 'แก้ไขข้อมูลผู้ใช้งาน' }}
+            </h4>
+            <button @click="showUserEditModal = false" class="text-sky-200 hover:text-white">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <form @submit.prevent="saveUserAccount" class="p-6 space-y-3.5">
+            <div v-if="userFormError" class="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-exclamation text-rose-500"></i>
+              <span>{{ userFormError }}</span>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อผู้ใช้งาน (Username) <span class="text-rose-500">*</span></label>
+              <input type="text" v-model="userForm.username" required
+                     class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">รหัสผ่าน (Password) <span class="text-rose-500">*</span></label>
+              <input type="text" v-model="userForm.password" required
+                     class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">ชื่อ-นามสกุล / ตำแหน่งผู้ใช้งาน <span class="text-rose-500">*</span></label>
+              <input type="text" v-model="userForm.name" required placeholder="เช่น จนท. SCGJWD (ประจำสาขา)"
+                     class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">สิทธิ์การใช้งาน (Role) <span class="text-rose-500">*</span></label>
+              <select v-model="userForm.role"
+                      class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none">
+                <option value="admin">👑 ผู้ดูแลภาพรวม (Admin - เห็นทุกบริษัท/จัดการผู้ใช้ได้)</option>
+                <option value="SCGJWD">🏢 บริษัทขนส่ง SCGJWD (เห็นเฉพาะงานของ SCGJWD)</option>
+                <option value="NST">🏢 บริษัทขนส่ง NST (เห็นเฉพาะงานของ NST)</option>
+                <option value="RTT">🏢 บริษัทขนส่ง RTT (เห็นเฉพาะงานของ RTT)</option>
+              </select>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <button type="button" @click="showUserEditModal = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold">
+                ยกเลิก
+              </button>
+              <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs">
+                บันทึกข้อมูล
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+
+      <!-- Toast Notification Notification -->
+      <div v-if="toast.show"
+           class="fixed bottom-5 right-5 z-50 animate-bounce-short">
+        <div :class="toast.type === 'success' ? 'bg-slate-900 text-emerald-400 border-emerald-500/30' : 'bg-slate-900 text-amber-400 border-amber-500/30'"
+             class="px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold">
+          <i :class="toast.type === 'success' ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-circle-info text-amber-400'"></i>
+          <span class="text-white">{{ toast.message }}</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
